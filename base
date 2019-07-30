@@ -1,0 +1,63 @@
+from WindPy import *
+import time
+import pandas as pd
+import talib as ta
+import WindCharts as wc
+from WindCharts import *  
+pd.set_option('display.max_rows', 500)
+pd.set_option('display.max_columns', 500)
+w.start()
+_, kcb_df = w.wset("sectorconstituent", "date=2019-07-22;sectorId=1000033376000000", usedf=True)
+kcb_df.date = pd.to_datetime(kcb_df['date'])
+kcb_tb = wc.WTable(data=kcb_df)
+kcb_tb.plot()
+_, kcb_price1 = w.wss(kcb_df.wind_code.to_list(), "sec_name,open,high,low,close,volume,pe_ttm,pct_chg", "tradeDate=20190726;priceAdj=U;cycle=D", usedf=True)
+kcb_price1=kcb_price1.sort_values(by="PE_TTM" , ascending=True) 
+kcb_price1
+_, kcb_price2 = w.wss(kcb_df.wind_code.to_list(), "open,high,low,close,volume,pe_ttm,pct_chg", "tradeDate=20190723;priceAdj=U;cycle=D", usedf=True)
+_, kcb_price3 = w.wss(kcb_df.wind_code.to_list(), "open,high,low,close,volume,pe_ttm,pct_chg", "tradeDate=20190724;priceAdj=U;cycle=D", usedf=True)
+_, kcb_price4 = w.wss(kcb_df.wind_code.to_list(), "open,high,low,close,volume,pe_ttm,pct_chg", "tradeDate=20190725;priceAdj=U;cycle=D", usedf=True)
+_, kcb_price5 = w.wss(kcb_df.wind_code.to_list(), "open,high,low,close,volume,pe_ttm,pct_chg", "tradeDate=20190726;priceAdj=U;cycle=D", usedf=True)
+df=pd.concat([kcb_price1, kcb_price2,kcb_price3,kcb_price4,kcb_price5],axis=1)
+df_zd=df[["SEC_NAME","PCT_CHG"]]
+new_col = ["名称", "20190722" ,"20190723","20190724","20190725","20190726"]
+df_zd.columns = new_col
+df_zd
+df_zd["5日涨跌和"]=df_zd["20190722"]+df_zd["20190723"]+df_zd["20190724"]+df_zd["20190725"]+df_zd["20190726"]
+df_zd["5日均值"]=df_zd["5日涨跌和"]/5
+df_zd=df_zd.sort_values(by="5日均值" , ascending=False) 
+df_zd
+_, detail = w.wss("688001.SH,688002.SH,688003.SH,688005.SH,688006.SH,688007.SH,688008.SH,688009.SH,688010.SH,688011.SH,688012.SH,688015.SH,688016.SH,688018.SH,688019.SH,688020.SH,688022.SH,688028.SH,688029.SH,688033.SH,688066.SH,688088.SH,688122.SH,688333.SH,688388.SH", "chairman,province,city,boardchairmen,holder_controller,holder_pct", "tradeDate=20190722;order=1", usedf=True)
+plot_df = detail.groupby('PROVINCE', as_index=True).count().iloc[:, :1]
+plot_df.columns = ['上市省份数量']
+plot_df.index.name = None
+plot_df.index = plot_df.index.str.replace('省', '')
+plot_df
+chart = wc.WChinaMap(title='25只科创板上市分布图', data=plot_df)
+chart.plot()
+def get_yoy_equity(code):
+    #主营业务数据获取
+    rptDate_list=['2017','2018']
+    yoy_df=None
+
+    for rptDate in rptDate_list:
+        wss_data=w.wss(code, "yoy_equity,yoyeps_basic,yoy_tr,yoycf,yoyprofit,yoydebt","rptDate="+rptDate+"1231")
+        if(wss_data.ErrorCode==-40522015):
+            print('该案例需要用到某些财务指标，您没有对应指标的权限，如有需要，请联系管理员开通！')
+            break
+        else:
+            yoy=pd.DataFrame(wss_data.Data,index=['净资产(同比增长)','每股收益(同比增长)','营业总收入(同比增长)','现金净流量(同比增长)','净利润(同比增长)','总负债(同比增长)'],columns=[rptDate])
+            yoy=yoy.T
+            if(yoy_df is None):
+                yoy_df = yoy
+            else:
+                yoy_df=yoy_df.append(yoy)
+
+    return yoy_df
+
+code='688009.SH'
+yoy_df =get_yoy_equity(code)
+yoy_df = yoy_df.fillna(0)
+yoy_df.head()
+chart = WRadar(title='中国通号：财务指标雷达图展示',subtitle=code,data=yoy_df,category_quote='index')
+chart.plot()
